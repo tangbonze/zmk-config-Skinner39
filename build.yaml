@@ -2,7 +2,8 @@
 include:
   - board: skinner39_left
     shield: nice_view
-    snippet: studio-rpc-usb-uart
+    snippet: zmk-usb-logging
   - board: skinner39_right
     shield: nice_view
+    snippet: zmk-usb-logging
 
