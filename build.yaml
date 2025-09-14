@@ -6,4 +6,7 @@ include:
   - board: skinner39_right
     shield: nice_view
     snippet: zmk-usb-logging
-
+  - board: skinner39_left
+    shield: settings_reset
+  - board: skinner39_right
+    shield: settings_reset
