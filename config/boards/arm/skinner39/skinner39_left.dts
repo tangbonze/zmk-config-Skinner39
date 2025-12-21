@@ -1,32 +1,31 @@
 #include "skinner39.dtsi"
 #include <dt-bindings/led/led.h>
 #include <input/processors.dtsi>
-
+#include <dt-bindings/zmk/input_transform.h>
 
 &pinctrl {
     spi2_default: spi2_default {
-				group1 {
-						psels = <NRF_PSEL(SPIM_MOSI, 0, 12)>,
-						<NRF_PSEL(SPIM_SCK, 1, 9)>;
-				};
-		};
-	
-    spi2_sleep: spi2_sleep {
-				group1 {
-						psels = <NRF_PSEL(SPIM_MOSI, 0, 12)>,
-						<NRF_PSEL(SPIM_SCK, 1, 9)>;
-						low-power-enable;
-				};
-		};
-};
+        group1 {
+            psels = <NRF_PSEL(SPIM_MOSI, 0, 12)>,
+                    <NRF_PSEL(SPIM_SCK,  1, 9)>;
+        };
+    };
 
+    spi2_sleep: spi2_sleep {
+        group1 {
+            psels = <NRF_PSEL(SPIM_MOSI, 0, 12)>,
+                    <NRF_PSEL(SPIM_SCK,  1, 9)>;
+            low-power-enable;
+        };
+    };
+};
 
 lpm_view_spi: &spi2 {
     compatible = "nordic,nrf-spim";
     pinctrl-0 = <&spi2_default>;
     pinctrl-1 = <&spi2_sleep>;
     pinctrl-names = "default", "sleep";
-    cs-gpios = <&gpio0 8 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN) >;
+    cs-gpios = <&gpio0 8 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
 };
 
 nice_view_spi: &spi2 {
@@ -34,54 +33,76 @@ nice_view_spi: &spi2 {
     pinctrl-0 = <&spi2_default>;
     pinctrl-1 = <&spi2_sleep>;
     pinctrl-names = "default", "sleep";
-    cs-gpios = <&gpio0 8 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN) >;
+    cs-gpios = <&gpio0 8 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
 };
-
-
 
 &matrix_physical_layout {
-  	kscan = <&kscan0>;
+    kscan = <&kscan0>;
 };
 
-/ {
-	chosen {
-		zmk,physical-layout = &matrix_physical_layout;
-	};
+ / {
+    chosen {
+        zmk,physical-layout = &matrix_physical_layout;
+    };
+
     kscan0: kscan {
         compatible = "zmk,kscan-gpio-matrix";
         wakeup-source;
 
         diode-direction = "col2row";
+
         row-gpios
             = <&gpio1 13 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
             , <&gpio1 15 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
-            , <&gpio0 2 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
+            , <&gpio0  2 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
             , <&gpio0 24 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
             ;
 
-			col-gpios
-							= <&gpio0 31 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
-							, <&gpio0 26 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
-							, <&gpio0 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
-							, <&gpio0 6 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
-							, <&gpio0 9 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
-							, <&gpio1 0 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
+        col-gpios
+            = <&gpio0 31 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
+            , <&gpio0 26 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
+            , <&gpio0  4 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
+            , <&gpio0  6 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
+            , <&gpio0  9 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>
+            , <&gpio1  0 (GPIO_ACTIVE_HIGH | GPIO_PULL_DOWN)>;
     };
 };
 
+/* ===== TrackballのInput Listener（既存）にスナイプを追加 ===== */
 &pmw_listener {
-	status = "okay";
+    status = "okay";
 
-	// when layer 2 is active, the trackball will act as a mouse wheel
-	scroller {
-		layers = <5>;
-		input-processors = <&zip_xy_to_scroll_mapper>;
-	};
-	// default when layer 5 is active, the trackball will move more slowly
-		snipe {
-		layers =<6>;
-		input-processors = <&zip_xy_scaler 1 3>;
-	};
-	// temp layer when trackball is used, 2 is layer index, and 2000 is the time which the layer will deactivate when no input events is emitted
-	      //  input-processors = <&zip_temp_layer 4 2000>;
+    /* レイヤー5：垂直スクロール（Y反転、Xは無効化→スクロール化） */
+    scroller_vertical {
+        layers = <2>;
+        input-processors = <
+            &zip_xy_transform (INPUT_TRANSFORM_Y_INVERT)
+            &zip_x_scaler 0 1
+            &zip_xy_to_scroll_mapper
+            &zip_scroll_scaler 1 15
+        >;
+    };
+
+    /* レイヤー1：水平スクロール（Yを無効化→スクロール化） */
+    scroller_horizon {
+        layers = <1>;
+        input-processors = <
+            &zip_y_scaler 0 1
+            &zip_xy_to_scroll_mapper
+            &zip_scroll_scaler 1 50
+        >;
+    };
+
+    /* ★レイヤー4：スナイプ（精密エイム用の減速） */
+    snipe {
+        layers = <5>;
+        input-processors = <
+            &zip_xy_scaler     1 4   /* ポインタ移動倍率 */
+        >;
+    };
+
+    /* 例：トラックボール使用中だけ一時的にレイヤーを上げたい時
+     * input-processors = <&zip_temp_layer 4 2000>;
+     * （今回は使わないのでそのままコメントアウトでOK）
+     */
 };
